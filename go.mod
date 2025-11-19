@@ -1,4 +1,4 @@
-module pollycv
+module github.com/JoshPattman/cvscan
 
 go 1.25.4
 
