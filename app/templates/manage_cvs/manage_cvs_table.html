@@ -1,0 +1,54 @@
+{{ define "manage_cvs/manage_cvs_table" }}
+<div style="width: 50%;" id="manage-cvs-table">
+    <style>
+        .plus-minus-button {
+            width: 10px;
+            height: 10px;
+
+            padding: 0;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: content-box;
+            flex-shrink: 0;
+        }
+    </style>
+    <table class="compact-table">
+        <tr>
+            <td colspan="3">
+                <form hx-post="/hx/upload-doc" hx-target="#manage-cvs-table" hx-swap="outerHTML" enctype="multipart/form-data">
+                    <div style="display:flex; gap:0.25rem; align-items:center;">
+                        <div class="file-input-wrapper">
+                            <label for="upload">Select CV</label>
+                            <input id="upload" type="file" name="upload" accept="application/pdf">
+                        </div>
+
+                        <select name="dataset" class="tiny-select">
+                            {{ range .AllGroupOptions}}
+                            <option value="{{ . }}">{{ . }}</option>
+                            {{ end }}
+                        </select>
+
+                        <button type="submit" class="plus-minus-button">+</button>
+                    </div>
+                </form>
+            </td>
+        </tr>
+
+        {{ range .TableRowDatas}}
+        <tr>
+            <td>{{ .CV.FileName }}</td>
+            <td>
+                <select name="dataset" class="tiny-select">
+                    {{ range .AllGroupOptions}}
+                    <option value="{{ . }}">{{ . }}</option>
+                    {{ end }}
+                </select>
+            </td>
+            <td><button class="tiny-btn">-</button></td>
+        </tr>
+        {{ end }}
+    </table>
+</div>
+{{ end }}
