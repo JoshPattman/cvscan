@@ -13,29 +13,29 @@ import (
 	"github.com/JoshPattman/jpf"
 )
 
-type CandidateReviewModelBuilder interface {
+type ModelBuilder interface {
 	BuildCandidateReviewModel(*slog.Logger) jpf.Model
 }
 
-func BuildModelBuilder(apiKey string) (CandidateReviewModelBuilder, error) {
+func NewModelBuilder(apiKey string) (ModelBuilder, error) {
 	cache, err := jpf.NewFilePersistCache("./cache.gob")
 	if err != nil {
 		return nil, err
 	}
-	return &dumbModelBuilder{
+	return &simpleModelBuilder{
 		apiKey:      apiKey,
 		concLimiter: jpf.NewMaxConcurrentLimiter(3),
 		cache:       cache,
 	}, nil
 }
 
-type dumbModelBuilder struct {
+type simpleModelBuilder struct {
 	apiKey      string
 	concLimiter jpf.ConcurrentLimiter
 	cache       jpf.ModelResponseCache
 }
 
-func (mb *dumbModelBuilder) BuildCandidateReviewModel(logger *slog.Logger) jpf.Model {
+func (mb *simpleModelBuilder) BuildCandidateReviewModel(logger *slog.Logger) jpf.Model {
 	model := jpf.NewOpenAIModel(mb.apiKey, "gpt-4.1", jpf.WithTemperature{X: 0})
 	model = jpf.NewLoggingModel(model, jpf.NewSlogModelLogger(logger.Info, false))
 	model = jpf.NewRetryModel(model, 8, jpf.WithDelay{X: time.Second * 5})
@@ -50,7 +50,9 @@ type CandidateReviewData struct {
 	Resume    string
 }
 
-type CandidateReviewer jpf.MapFunc[CandidateReviewData, map[string]bool]
+type CandidateReviewResponse map[string]checklistItemResponse
+
+type CandidateReviewer jpf.MapFunc[CandidateReviewData, CandidateReviewResponse]
 
 type CandidateQuestionResult struct {
 	Probability float64
@@ -64,7 +66,7 @@ func (c CandidateQuestionResult) Inconsistency() float64 {
 	return min(c.Probability, 1-c.Probability) * 2
 }
 
-func ReviewCandidates(modelBuilder CandidateReviewModelBuilder, checklist map[string]string, resumes []string, logger *slog.Logger) ([]map[string]CandidateQuestionResult, error) {
+func ReviewCandidates(modelBuilder ModelBuilder, checklist map[string]string, resumes []string, logger *slog.Logger) ([]map[string]CandidateQuestionResult, error) {
 	results := make([]map[string]CandidateQuestionResult, len(resumes))
 	errs := make([]error, len(results))
 	wg := &sync.WaitGroup{}
@@ -72,7 +74,7 @@ func ReviewCandidates(modelBuilder CandidateReviewModelBuilder, checklist map[st
 	for i := range resumes {
 		go func() {
 			candidateLogger := logger.With("resume", i)
-			res, err := ReviewCandidate(modelBuilder, checklist, resumes[i], 10, candidateLogger)
+			res, err := reviewSingleCandidate(modelBuilder, checklist, resumes[i], 10, candidateLogger)
 			if err != nil {
 				errs[i] = err
 				candidateLogger.Error("Failed to review candidate", "err", err)
@@ -97,7 +99,7 @@ func ReviewCandidates(modelBuilder CandidateReviewModelBuilder, checklist map[st
 	return results, nil
 }
 
-func ReviewCandidate(modelBuilder CandidateReviewModelBuilder, checklist map[string]string, resume string, repeats int, logger *slog.Logger) (map[string]CandidateQuestionResult, error) {
+func reviewSingleCandidate(modelBuilder ModelBuilder, checklist map[string]string, resume string, repeats int, logger *slog.Logger) (map[string]CandidateQuestionResult, error) {
 	resultss := make([]map[string]bool, repeats)
 	errs := make([]error, repeats)
 	wg := &sync.WaitGroup{}
@@ -140,30 +142,14 @@ func ReviewCandidate(modelBuilder CandidateReviewModelBuilder, checklist map[str
 	return probs, nil
 }
 
-func reviewCandidateHelper(modelBuilder CandidateReviewModelBuilder, checklist map[string]string, resume string, i int, logger *slog.Logger) (map[string]bool, error) {
-	enc := jpf.NewTemplateMessageEncoder[CandidateReviewData]("", simpleCandidateReviewTemplate)
-	dec := jpf.NewJsonResponseDecoder[map[string]checklistItemResponse]()
-	dec = jpf.NewValidatingResponseDecoder(dec, func(m map[string]checklistItemResponse) error {
-		missingKeys := make([]string, 0)
-		for k := range checklist {
-			if _, ok := m[k]; !ok {
-				missingKeys = append(missingKeys, k)
-			}
-		}
-		if len(missingKeys) > 0 {
-			return fmt.Errorf("missing the following question keys: %v", missingKeys)
-		}
-		return nil
-	})
-	fed := jpf.NewRawMessageFeedbackGenerator()
-	model := modelBuilder.BuildCandidateReviewModel(logger)
-	mf := jpf.NewFeedbackMapFunc(enc, dec, fed, model, jpf.UserRole, 10)
-
-	result, _, err := mf.Call(context.Background(), CandidateReviewData{
+func reviewCandidateHelper(modelBuilder ModelBuilder, checklist map[string]string, resume string, i int, logger *slog.Logger) (map[string]bool, error) {
+	mf := buildReviewCandidateReviewMapFunc(modelBuilder, logger)
+	inputData := CandidateReviewData{
 		I:         i,
 		Checklist: checklist,
 		Resume:    resume,
-	})
+	}
+	result, _, err := mf.Call(context.Background(), inputData)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +158,33 @@ func reviewCandidateHelper(modelBuilder CandidateReviewModelBuilder, checklist m
 		answers[key] = resp.Answer
 	}
 	return answers, nil
+}
+
+// Build a mapfunc (a typed LLM call with retry logic) for reviewing a candidate.
+func buildReviewCandidateReviewMapFunc(modelBuilder ModelBuilder, logger *slog.Logger) CandidateReviewer {
+	enc := jpf.NewTemplateMessageEncoder[CandidateReviewData](
+		"",
+		simpleCandidateReviewTemplate,
+	)
+	dec := jpf.NewJsonResponseDecoder[CandidateReviewData, CandidateReviewResponse]()
+	dec = jpf.NewValidatingResponseDecoder(
+		dec,
+		func(input CandidateReviewData, response CandidateReviewResponse) error {
+			missingKeys := make([]string, 0)
+			for k := range input.Checklist {
+				if _, ok := response[k]; !ok {
+					missingKeys = append(missingKeys, k)
+				}
+			}
+			if len(missingKeys) > 0 {
+				return fmt.Errorf("missing the following question keys: %v", missingKeys)
+			}
+			return nil
+		},
+	)
+	fed := jpf.NewRawMessageFeedbackGenerator()
+	model := modelBuilder.BuildCandidateReviewModel(logger)
+	return jpf.NewFeedbackMapFunc(enc, dec, fed, model, jpf.UserRole, 10)
 }
 
 type checklistItemResponse struct {

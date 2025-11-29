@@ -3,7 +3,7 @@ module github.com/JoshPattman/cvscan
 go 1.25.4
 
 require (
-	github.com/JoshPattman/jpf v0.9.0-beta.1
+	github.com/JoshPattman/jpf v0.9.0-beta.3
 	github.com/MatusOllah/slogcolor v1.7.0
 	github.com/fatih/color v1.16.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728

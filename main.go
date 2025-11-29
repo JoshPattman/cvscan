@@ -49,7 +49,7 @@ func main() {
 	}
 
 	logger.Info("Creating model builder")
-	modelBuilder, err := BuildModelBuilder(cfg.APIKey)
+	modelBuilder, err := NewModelBuilder(cfg.APIKey)
 	if err != nil {
 		fail(err)
 	}

@@ -1,5 +1,5 @@
-github.com/JoshPattman/jpf v0.9.0-beta.1 h1:pUhYGUyfV2oGLH9lMIbQL/7A/4bXvM341uva20Z6QE8=
-github.com/JoshPattman/jpf v0.9.0-beta.1/go.mod h1:cHC95BslP15u/Dif/zVyg1dZwjNNRHJGGiY6+rGMFKM=
+github.com/JoshPattman/jpf v0.9.0-beta.3 h1:q5JUxc1g4AmarQNpSGTdV5rNLzB1XnkH38bAwQ5VtC8=
+github.com/JoshPattman/jpf v0.9.0-beta.3/go.mod h1:cHC95BslP15u/Dif/zVyg1dZwjNNRHJGGiY6+rGMFKM=
 github.com/MatusOllah/slogcolor v1.7.0 h1:Nrd7yBPv2EBEEBEwl7WEPRmMd1ozZzw2jm8SLMYDbKs=
 github.com/MatusOllah/slogcolor v1.7.0/go.mod h1:5y1H50XuQIBvuYTJlmokWi+4FuPiJN5L7Z0jM4K4bYA=
 github.com/fatih/color v1.16.0 h1:zmkK9Ngbjj+K0yRhTVONQh1p/HknKYSlNT+vZCzyokM=
