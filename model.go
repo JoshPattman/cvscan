@@ -17,7 +17,7 @@ type ModelBuilder interface {
 
 // NewModelBuilder tries to create a new ModelBuilder with the specified API key.
 // The model will use cache that is persisted to ./cache.gob and will limit maximum number of concurrent connections.
-func NewModelBuilder(apiKey string, apiURL string, maxConcurrency int) (ModelBuilder, error) {
+func NewModelBuilder(apiKey string, apiURL string, modelName string, maxConcurrency int) (ModelBuilder, error) {
 	cache, err := jpf.NewFilePersistCache("./cache.gob")
 	if err != nil {
 		return nil, err
@@ -25,7 +25,7 @@ func NewModelBuilder(apiKey string, apiURL string, maxConcurrency int) (ModelBui
 	return &simpleModelBuilder{
 		apiKey:       apiKey,
 		apiUrl:       apiURL,
-		modelName:    "gpt-4.1",
+		modelName:    modelName,
 		concLimiter:  jpf.NewMaxConcurrentLimiter(maxConcurrency),
 		cache:        cache,
 		usageCounter: jpf.NewUsageCounter(),
