@@ -53,8 +53,7 @@ type ConfigView struct {
 }
 
 type Config struct {
-	Views  map[string]ConfigView `json:"views"`
-	APIKey string                `json:"api_key"`
+	Views map[string]ConfigView `json:"views"`
 }
 
 func LoadConfig() (Config, error) {

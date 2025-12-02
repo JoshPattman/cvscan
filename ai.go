@@ -2,51 +2,12 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
-	"slices"
-	"sync"
-	"time"
 
 	"github.com/JoshPattman/jpf"
 )
-
-// ModelBuilder builds LLM models.
-type ModelBuilder interface {
-	// BuildCandidateReviewModel builds a model for candidate review, using the specified logger.
-	BuildCandidateReviewModel(*slog.Logger) jpf.Model
-}
-
-// NewModelBuilder tries to create a new ModelBuilder with the specified API key.
-// The model will use cache that is persisted to ./cache.gob and will limit concurrency to 3.
-func NewModelBuilder(apiKey string) (ModelBuilder, error) {
-	cache, err := jpf.NewFilePersistCache("./cache.gob")
-	if err != nil {
-		return nil, err
-	}
-	return &simpleModelBuilder{
-		apiKey:      apiKey,
-		concLimiter: jpf.NewMaxConcurrentLimiter(3),
-		cache:       cache,
-	}, nil
-}
-
-type simpleModelBuilder struct {
-	apiKey      string
-	concLimiter jpf.ConcurrentLimiter
-	cache       jpf.ModelResponseCache
-}
-
-func (mb *simpleModelBuilder) BuildCandidateReviewModel(logger *slog.Logger) jpf.Model {
-	model := jpf.NewOpenAIModel(mb.apiKey, "gpt-4.1", jpf.WithTemperature{X: 0})
-	model = jpf.NewLoggingModel(model, jpf.NewSlogModelLogger(logger.Info, false))
-	model = jpf.NewRetryModel(model, 8, jpf.WithDelay{X: time.Second * 5})
-	model = jpf.NewConcurrentLimitedModel(model, mb.concLimiter)
-	model = jpf.NewCachedModel(model, mb.cache)
-	return model
-}
 
 // CandidateQuestionResult represents the result of a single checklist question for a candidate.
 type CandidateQuestionResult struct {
@@ -69,14 +30,22 @@ func (c CandidateQuestionResult) Probability() float64 {
 }
 
 // Review the candidates' resumes against the checklist using the provided model builder and logger.
-func ReviewCandidates(logger *slog.Logger, modelBuilder ModelBuilder, checklist map[string]string, resumes []string) ([]map[string]CandidateQuestionResult, error) {
+func ReviewCandidates(logger *slog.Logger, modelBuilder ModelBuilder, checklist map[string]string, resumes []string, numRepeats int) ([]map[string]CandidateQuestionResult, error) {
 	task := &candidateReviewTask{
 		modelBuilder: modelBuilder,
 		logger:       logger,
 		checklist:    checklist,
 		resumes:      resumes,
+		repeats:      numRepeats,
 	}
-	return task.Execute()
+	logger.Info(
+		"Reviewing resumes",
+		"num_resumes", len(resumes),
+		"num_checklist", len(checklist),
+		"num_repeats", task.repeats,
+		"estimated_llm_calls", len(resumes)*task.repeats,
+	)
+	return task.execute()
 }
 
 type candidateReviewTask struct {
@@ -87,17 +56,13 @@ type candidateReviewTask struct {
 	repeats      int
 }
 
-func (reviewer *candidateReviewTask) Execute() ([]map[string]CandidateQuestionResult, error) {
-	results := make([]map[string]CandidateQuestionResult, len(reviewer.resumes))
-	errs := make([]error, len(results))
-	wg := &sync.WaitGroup{}
-	wg.Add(len(results))
-	for i := range reviewer.resumes {
-		go func() {
+func (reviewer *candidateReviewTask) execute() ([]map[string]CandidateQuestionResult, error) {
+	return ParMapRange(
+		len(reviewer.resumes),
+		func(i int) (map[string]CandidateQuestionResult, error) {
 			candidateLogger := reviewer.logger.With("resume", i)
 			res, err := reviewer.reviewSingleCandidate(i)
 			if err != nil {
-				errs[i] = err
 				candidateLogger.Error("Failed to review candidate", "err", err)
 			} else {
 				inconsistency := 0.0
@@ -105,46 +70,29 @@ func (reviewer *candidateReviewTask) Execute() ([]map[string]CandidateQuestionRe
 					inconsistency += v.Inconsistency()
 				}
 				inconsistency /= float64(len(res))
-				results[i] = res
-				candidateLogger.Debug("Completed candidate review", "result", results[i])
+				candidateLogger.Debug("Completed candidate review", "result", res)
 				candidateLogger.Info("Completed candidate review", "inconsistency", math.Round(inconsistency*100)/100)
 			}
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	errs = slices.DeleteFunc(errs, func(err error) bool { return err == nil })
-	if len(errs) != 0 {
-		return nil, errors.Join(errs...)
-	}
-	return results, nil
+			return res, err
+		},
+	)
 }
 
 func (reviewer *candidateReviewTask) reviewSingleCandidate(candidateIndex int) (map[string]CandidateQuestionResult, error) {
-	resultss := make([]map[string]bool, reviewer.repeats)
-	errs := make([]error, reviewer.repeats)
-	wg := &sync.WaitGroup{}
-	wg.Add(reviewer.repeats)
-	for i := range reviewer.repeats {
-		go func() {
-			defer wg.Done()
+	// In parallell, repeat the review several times.
+	resultsPerRepeat, err := ParMapRange(
+		reviewer.repeats,
+		func(i int) (map[string]bool, error) {
 			repLogger := reviewer.logger.With("repeat", i)
-			results, err := reviewer.reviewCandidateOnce(repLogger, candidateIndex, i)
-			if err != nil {
-				errs[i] = err
-				repLogger.Error("failed to review candidate", "err", err)
-			} else {
-				resultss[i] = results
-			}
-		}()
+			return reviewer.reviewCandidateOnce(repLogger, candidateIndex, i)
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
-	wg.Wait()
-	errs = slices.DeleteFunc(errs, func(err error) bool { return err == nil })
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
+	// Aggregate the results.
 	probs := make(map[string]CandidateQuestionResult)
-	for _, results := range resultss {
+	for _, results := range resultsPerRepeat {
 		for k, v := range results {
 			var delta float64
 			if v {
