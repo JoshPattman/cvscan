@@ -21,6 +21,7 @@ func main() {
 	numRepeats := flag.Int("r", 5, "number of repeats to run, higher is more accurate but costs more and is slower")
 	maxConcurrentConnections := flag.Int("c", 3, "maximum number of concurrent connections to the LLM API, higher is faster but will rate limit more easily")
 	apiKey := flag.String("k", "", "the openai api key, must always be specified")
+	apiUrl := flag.String("u", "https://api.openai.com/v1/chat/completions", "the openai api url (or a url of any other openai-format api)")
 	flag.Parse()
 
 	tAllstart := time.Now()
@@ -81,7 +82,7 @@ func main() {
 	}
 
 	logger.Info("Creating model builder")
-	modelBuilder, err := NewModelBuilder(*apiKey, *maxConcurrentConnections)
+	modelBuilder, err := NewModelBuilder(*apiKey, *apiUrl, *maxConcurrentConnections)
 	if err != nil {
 		logger.Error("Failed to create model builder", "err", err)
 		os.Exit(1)
