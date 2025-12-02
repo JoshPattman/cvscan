@@ -48,6 +48,21 @@ func main() {
 		fail(err)
 	}
 
+	if err := os.MkdirAll("./text", os.ModePerm); err != nil {
+		fail(err)
+	}
+
+	logger.Info("Saving text files")
+	for k, v := range pdfs {
+		pdfNames = append(pdfNames, k)
+		pdfContents = append(pdfContents, v)
+		name := filepath.Base(k)
+		err = WriteTextFile(fmt.Sprintf("./text/%s.txt", name), v)
+		if err != nil {
+			fail(err)
+		}
+	}
+
 	logger.Info("Creating model builder")
 	modelBuilder, err := NewModelBuilder(cfg.APIKey)
 	if err != nil {
