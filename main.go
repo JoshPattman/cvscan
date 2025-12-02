@@ -79,7 +79,7 @@ func main() {
 			checklist := checklistFromConfig(view)
 			viewLogger := logger.With("view_name", viewName)
 			viewLogger.Info("Beginning review", "num_checklist", len(checklist), "num_resumes", len(pdfContents))
-			result, err := ReviewCandidates(modelBuilder, checklist, pdfContents, viewLogger)
+			result, err := ReviewCandidates(viewLogger, modelBuilder, checklist, pdfContents)
 			if err != nil {
 				fail(err)
 			}

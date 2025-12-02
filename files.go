@@ -1,14 +1,35 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strconv"
+
+	"github.com/ledongthuc/pdf"
 )
 
+// GetTextFromPDFFile extracts and returns the text content from a PDF file.
+func GetTextFromPDFFile(file string) (string, error) {
+	f, r, err := pdf.Open(file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var buf bytes.Buffer
+	b, err := r.GetPlainText()
+	if err != nil {
+		return "", err
+	}
+	buf.ReadFrom(b)
+	return buf.String(), nil
+}
+
+// CandidateReport represents the report for a single candidate.
 type CandidateReport struct {
 	FileName   string
 	FileLoc    string
@@ -16,14 +37,19 @@ type CandidateReport struct {
 	FinalScore float64
 }
 
+// ReportMode defines the mode of report generation.
 type ReportMode uint8
 
 const (
+	// Boolean mode outputs true/false for checklist items.
 	Boolean ReportMode = iota
+	// Probability mode outputs the probability scores for checklist items.
 	Probability
+	// Inconsistency mode outputs the inconsistency scores for checklist items.
 	Inconsistency
 )
 
+// WriteTextFile writes the given content to a text file with the specified filename.
 func WriteTextFile(filename string, content string) error {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -37,6 +63,7 @@ func WriteTextFile(filename string, content string) error {
 	return nil
 }
 
+// WriteCandidateReportsAsCSVFile writes the candidate reports to a CSV file in the specified mode.
 func WriteCandidateReportsAsCSVFile(filename string, reports []CandidateReport, mode ReportMode) error {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -46,6 +73,7 @@ func WriteCandidateReportsAsCSVFile(filename string, reports []CandidateReport, 
 	return WriteCandidateReportsAsCSV(f, reports, mode)
 }
 
+// WriteCandidateReportsAsCSV writes the candidate reports to the provided writer in CSV format.
 func WriteCandidateReportsAsCSV(w io.Writer, reports []CandidateReport, mode ReportMode) error {
 	cw := csv.NewWriter(w)
 
@@ -87,7 +115,7 @@ func WriteCandidateReportsAsCSV(w io.Writer, reports []CandidateReport, mode Rep
 					row = append(row, "false")
 				}
 			case Probability:
-				row = append(row, fmt.Sprintf("%.3f", r.Checklist[k].Probability))
+				row = append(row, fmt.Sprintf("%.3f", r.Checklist[k].probability))
 			case Inconsistency:
 				row = append(row, fmt.Sprintf("%.3f", r.Checklist[k].Inconsistency()))
 			}
