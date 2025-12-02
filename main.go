@@ -23,11 +23,14 @@ func main() {
 	apiKey := flag.String("k", "", "the openai api key, must always be specified")
 	apiUrl := flag.String("u", "https://api.openai.com/v1/chat/completions", "the openai api url (or a url of any other openai-format api)")
 	modelName := flag.String("m", "gpt-4.1", "the name of the model to use for everything")
+	debugLevel := flag.Bool("d", false, "if specified, enables debug logging")
 	flag.Parse()
 
 	tAllstart := time.Now()
 	opts := slogcolor.DefaultOptions
-	//opts.Level = slog.LevelDebug
+	if *debugLevel {
+		opts.Level = slog.LevelDebug
+	}
 	opts.MsgColor = color.New(color.FgMagenta)
 	opts.SrcFileMode = slogcolor.Nop
 	logger := slog.New(slogcolor.NewHandler(os.Stderr, opts))

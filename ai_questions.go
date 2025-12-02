@@ -100,6 +100,7 @@ func buildQuestionCandidateMapFunc(modelBuilder ModelBuilder, logger *slog.Logge
 		simpleCandidateQuestionTemplate,
 	)
 	dec := jpf.NewJsonResponseDecoder[candidateQuestionRequest, candidateQuestionsResponse]()
+	dec = wrapJsonDecoder(dec)
 	dec = jpf.NewValidatingResponseDecoder(
 		dec,
 		func(input candidateQuestionRequest, response candidateQuestionsResponse) error {
@@ -124,7 +125,7 @@ const simpleCandidateQuestionTemplate = `You are an expert candidate reviewer. E
 
 For each question entry, produce:
 - "reasoning": your full internal reasoning and thought process leading to the answer  
-- "answer": a string answer to the question (if not otherwise specified, this should be as concise as possible)
+- "answer": an object with two keys, "reasoning" and "answer", where "reasoning" is a sentence or two reasoning about the question, and "answer" is a concise text answer to the question.
 
 Return a single JSON object where each key matches the exact question key. Do not return extra keys, and make sure to answer all questions.
 

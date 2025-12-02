@@ -161,6 +161,7 @@ func buildReviewCandidateReviewMapFunc(modelBuilder ModelBuilder, logger *slog.L
 		simpleCandidateReviewTemplate,
 	)
 	dec := jpf.NewJsonResponseDecoder[candidateReviewRequest, candidateReviewResponse]()
+	dec = wrapJsonDecoder(dec)
 	dec = jpf.NewValidatingResponseDecoder(
 		dec,
 		func(input candidateReviewRequest, response candidateReviewResponse) error {

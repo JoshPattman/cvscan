@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"slices"
+	"strings"
 	"sync"
+
+	"github.com/JoshPattman/jpf"
 )
 
 // ParMapDo runs the function for each item in inputs in parallel, returning an error if any occurred.
@@ -46,4 +49,21 @@ func ParMap[T, U any](inputs []T, fn func(T) (U, error)) ([]U, error) {
 		return nil, errors.Join(errs...)
 	}
 	return results, nil
+}
+
+func wrapJsonDecoder[T, U any](dec jpf.ResponseDecoder[T, U]) jpf.ResponseDecoder[T, U] {
+	return jpf.NewSubstringResponseDecoder(
+		dec,
+		func(s string) (string, error) {
+			startIndex := strings.Index(s, "{")
+			endIndex := strings.LastIndex(s, "}")
+			if startIndex == -1 {
+				startIndex = 0
+			}
+			if endIndex == -1 || endIndex <= startIndex {
+				endIndex = len(s) - 1
+			}
+			return s[startIndex : endIndex+1], nil
+		},
+	)
 }
