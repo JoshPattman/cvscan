@@ -31,6 +31,14 @@ func (c CandidateQuestionResult) Probability() float64 {
 
 // Review the candidates' resumes against the checklist using the provided model builder and logger.
 func ReviewCandidates(logger *slog.Logger, modelBuilder ModelBuilder, checklist map[string]string, resumes []string, numRepeats int) ([]map[string]CandidateQuestionResult, error) {
+	if len(resumes) == 0 {
+		logger.Info("No resumes provided for checklist, skipping")
+		return []map[string]CandidateQuestionResult{}, nil
+	}
+	if len(checklist) == 0 {
+		logger.Info("No questions provided for checklist, skipping")
+		return make([]map[string]CandidateQuestionResult, len(resumes)), nil
+	}
 	task := &candidateReviewTask{
 		modelBuilder: modelBuilder,
 		logger:       logger,

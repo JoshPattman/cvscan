@@ -6,6 +6,10 @@ import (
 	"os"
 )
 
+type ConfigSpecificQuestion struct {
+	Question string `json:"question"`
+}
+
 type ConfigScoreChecklistItem struct {
 	Question  string
 	Weight    float64
@@ -48,8 +52,9 @@ func (c *ConfigScoreChecklistItem) MarshalJSON() ([]byte, error) {
 }
 
 type ConfigView struct {
-	PrettyName     string                              `json:"pretty_name"`
-	ScoreChecklist map[string]ConfigScoreChecklistItem `json:"score_checklist"`
+	PrettyName        string                              `json:"pretty_name"`
+	ScoreChecklist    map[string]ConfigScoreChecklistItem `json:"score_checklist"`
+	SpecificQuestions map[string]ConfigSpecificQuestion   `json:"specific_questions"`
 }
 
 type Config struct {

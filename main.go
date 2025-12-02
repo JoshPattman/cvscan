@@ -103,7 +103,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("Everything finished", "time_taken", time.Since(tAllstart))
+	counter := modelBuilder.UsageCounter()
+	usage := counter.Get()
+	logger.Info(
+		"Everything finished",
+		"time_taken",
+		time.Since(tAllstart),
+		"input_tokens",
+		usage.InputTokens,
+		"output_tokens",
+		usage.OutputTokens,
+		"successful_requests",
+		usage.SuccessfulCalls,
+		"failed_requests",
+		usage.FailedCalls,
+	)
 }
 
 type viewRunner struct {
@@ -124,6 +138,14 @@ func (v *viewRunner) runView(viewName string) error {
 	if err != nil {
 		return err
 	}
+	questions := make(map[string]string)
+	for qk, qv := range view.SpecificQuestions {
+		questions[qk] = qv.Question
+	}
+	answers, err := AnswerQuestionsForCandidates(viewLogger, v.modelBuilder, questions, v.pdfContents)
+	if err != nil {
+		return err
+	}
 	reports := make([]CandidateReport, len(result))
 	for i := range result {
 		finalScore := 0.0
@@ -138,6 +160,7 @@ func (v *viewRunner) runView(viewName string) error {
 			FileLoc:    v.pdfNames[i],
 			Checklist:  result[i],
 			FinalScore: finalScore,
+			Questions:  answers[i],
 		}
 	}
 	sort.Slice(reports, func(i, j int) bool {

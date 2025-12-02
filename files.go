@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/ledongthuc/pdf"
 )
@@ -35,6 +36,7 @@ type CandidateReport struct {
 	FileLoc    string
 	Checklist  map[string]CandidateQuestionResult
 	FinalScore float64
+	Questions  map[string]CandidateTextQuestionResult
 }
 
 // ReportMode defines the mode of report generation.
@@ -92,10 +94,26 @@ func WriteCandidateReportsAsCSV(w io.Writer, reports []CandidateReport, mode Rep
 	}
 	sort.Strings(keys)
 
+	// Collect all question keys
+	questionKeySet := make(map[string]struct{})
+	for _, r := range reports {
+		for k := range r.Questions {
+			questionKeySet[k] = struct{}{}
+		}
+	}
+
+	// Sort question keys alphabetically
+	questionKeys := make([]string, 0, len(questionKeySet))
+	for k := range questionKeySet {
+		questionKeys = append(questionKeys, k)
+	}
+	sort.Strings(questionKeys)
+
 	// Build header
 	header := []string{"FileName", "FileLoc"}
 	header = append(header, keys...)
 	header = append(header, "FinalScore")
+	header = append(header, questionKeys...)
 
 	if err := cw.Write(header); err != nil {
 		return fmt.Errorf("write header: %w", err)
@@ -122,6 +140,15 @@ func WriteCandidateReportsAsCSV(w io.Writer, reports []CandidateReport, mode Rep
 		}
 
 		row = append(row, strconv.FormatFloat(r.FinalScore, 'f', -1, 64))
+
+		// Append question answers
+		for _, qk := range questionKeys {
+			if ans, ok := r.Questions[qk]; ok {
+				row = append(row, strings.ReplaceAll(ans.Answer, ",", ";"))
+			} else {
+				row = append(row, "")
+			}
+		}
 
 		if err := cw.Write(row); err != nil {
 			return fmt.Errorf("write row: %w", err)
