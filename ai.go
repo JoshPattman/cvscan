@@ -57,10 +57,12 @@ type candidateReviewTask struct {
 }
 
 func (reviewer *candidateReviewTask) execute() ([]map[string]CandidateQuestionResult, error) {
+	reviewer.logger.Info("Beginning candidate reviews", "num_candidates", len(reviewer.resumes))
 	return ParMapRange(
 		len(reviewer.resumes),
 		func(i int) (map[string]CandidateQuestionResult, error) {
 			candidateLogger := reviewer.logger.With("resume", i)
+			candidateLogger.Info("Begun candidate review")
 			res, err := reviewer.reviewSingleCandidate(i)
 			if err != nil {
 				candidateLogger.Error("Failed to review candidate", "err", err)

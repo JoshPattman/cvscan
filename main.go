@@ -71,8 +71,6 @@ func main() {
 
 	logger.Info("Saving text files")
 	for k, v := range pdfs {
-		pdfNames = append(pdfNames, k)
-		pdfContents = append(pdfContents, v)
 		name := filepath.Base(k)
 		err = WriteTextFile(fmt.Sprintf("./text/%s.txt", name), v)
 		if err != nil {
