@@ -110,9 +110,9 @@ func WriteCandidateReportsAsCSV(w io.Writer, reports []CandidateReport, mode Rep
 	sort.Strings(questionKeys)
 
 	// Build header
-	header := []string{"FileName", "FileLoc"}
+	header := []string{"file_name", "file_loc"}
 	header = append(header, keys...)
-	header = append(header, "FinalScore")
+	header = append(header, "final_score")
 	header = append(header, questionKeys...)
 
 	if err := cw.Write(header); err != nil {
